@@ -1,0 +1,12 @@
+# binaries
+/api
+/verify
+*.test
+*.out
+
+# go
+vendor/
+
+# editor/os
+.DS_Store
+*.swp

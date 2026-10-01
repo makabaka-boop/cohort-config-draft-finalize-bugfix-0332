@@ -1,0 +1,59 @@
+name: configrel
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: configrel
+      POSTGRES_PASSWORD: configrel
+      POSTGRES_DB: configrel
+    ports:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U configrel -d configrel"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      DATABASE_URL: postgres://configrel:configrel@db:5432/configrel?sslmode=disable
+      LISTEN_ADDR: ":8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080"
+
+  # A second, independent API replica. It shares only the database, which is
+  # exactly what makes optimistic-generation commits and stable hash grouping
+  # observable across instances.
+  api2:
+    build:
+      context: .
+      target: api
+    environment:
+      DATABASE_URL: postgres://configrel:configrel@db:5432/configrel?sslmode=disable
+      LISTEN_ADDR: ":8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  verify:
+    build:
+      context: .
+      target: verify
+    environment:
+      BASE_URL: http://api:8080
+      SECOND_BASE_URL: http://api2:8080
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+      api2:
+        condition: service_started
+    restart: "no"
